@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vaani AI Demo Fixed</title>
+</head>
+<body>
+  <h2>🎤 Vaani AI Demo (Fixed)</h2>
+  <button onclick="startListening()">Start</button>
+  <button onclick="stopListening()">Stop</button>
+  <p id="response"></p>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCSRRKeTpkZYGRQuPaWTtixn_ef31V0C_I",
+      authDomain: "myvaani-485ca.firebaseapp.com",
+      projectId: "myvaani-485ca",
+      storageBucket: "myvaani-485ca.firebasestorage.app",
+      messagingSenderId: "477880037583",
+      appId: "1:477880037583:web:49218b544eb670175b07ba",
+      measurementId: "G-2069QQD1W2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      document.getElementById("response").innerText = "Browser SpeechRecognition support नहीं है। Chrome इस्तेमाल करें।";
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "hi-IN";
+    recognition.continuous = true;  // नया: Continuous listening
+    recognition.interimResults = true;  // नया: Interim results भी लें
+    recognition.onstart = () => console.log("Listening started");  // Debug
+
+    window.startListening = function () {
+      recognition.start();
+    };
+
+    window.stopListening = function () {
+      recognition.stop();
+    };
+
+    recognition.onresult = function (event) {
+      console.log("onresult fired! Event:", event);  // Debug
+      const transcript = event.results[event.results.length - 1][0].transcript;  // Latest result
+      console.log("Transcript:", transcript);
+      sendToAI(transcript);
+    };
+
+    recognition.onerror = function(event) {
+      console.error("Speech error:", event.error);  // Debug errors
+      document.getElementById("response").innerText = "Error: " + event.error;
+    };
+
+    recognition.onend = function() {
+      console.log("Recognition ended");  // Auto-restart के लिए optional
+      // startListening();  // Uncomment for continuous
+    };
+
+    function sendToAI(text) {
+  console.log("User said:", text);
+  const key = text.toLowerCase().trim();
+
+  const replies = {
+    // English
+    "hello": "Namaste! Main Vaani AI hoon.",
+    "hi": "Namaste! Main Vaani AI hoon.",
+    "complaint": "Aapki complaint register ho gayi hai.",
+    "order": "Aapka order check kiya ja raha hai.",
+    // Hindi keywords
+    "namaste": "Namaste! Main Vaani AI hoon.",
+    "नमस्ते": "Namaste! Main Vaani AI hoon.",
+    "वाणी": "Namaste! Main Vaani AI hoon।",
+    "शिकायत": "Aapki complaint register ho gayi hai.",
+    "ऑर्डर": "Aapka order check kiya ja raha hai.",
+    "हैलो": "Namaste! Main Vaani AI hoon।"
+  };
+
+  let reply = replies[key] || "";
+
+  // Flexible matching: अगर exact न मिले तो includes check
+  if (!reply) {
+    const cleanKey = key.replace(/[^a-zऀ-ॿ ]/g, "").trim();  // Hindi + English support
+    for (let k in replies) {
+      if (cleanKey.includes(k)) {
+        reply = replies[k];
+        console.log("Matched with includes:", k);
+        break;
+      }
+    }
+  }
+
+  console.log("Final reply:", reply);
+
+  if (reply) {
+    speak(reply);
+  } else {
+    speak("समझा नहीं। नमस्ते या शिकायत बोलें।");
+  }
+
+  saveConversation(text, reply);
+}
+    function speak(text) {
+      const speech = new SpeechSynthesisUtterance(text);
+      speech.lang = "hi-IN";
+      window.speechSynthesis.speak(speech);
+      document.getElementById("response").innerText = text;
+    }
+
+    async function saveConversation(userText, botText) {
+      try {
+        await addDoc(collection(db, "calls"), {
+          user: userText,
+          bot: botText,
+          timestamp: new Date()
+        });
+        console.log("Saved to Firebase");
+      } catch (e) {
+        console.error("Firebase error:", e);  // Permission denied handle
+      }
+    }
+  </script>
+</body>
+</html>
